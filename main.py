@@ -1,6 +1,17 @@
+from dotenv import load_dotenv
 from langchain_community.vectorstores import FAISS
 from langchain_huggingface import HuggingFaceEmbeddings
 from pathlib import Path
+
+load_dotenv()
+
+
+USE_POSTGRES_VECTOR_STORE = False
+
+if USE_POSTGRES_VECTOR_STORE:
+    from vector_database_PGVector import *
+else:
+    from vector_database_FAISS import *
 
 
 def _load_embedding_function() -> HuggingFaceEmbeddings:
@@ -13,10 +24,8 @@ def _load_embedding_function() -> HuggingFaceEmbeddings:
 
 def _load_chat_model():
     import os
-    from dotenv import load_dotenv
     from langchain_nvidia_ai_endpoints import ChatNVIDIA
 
-    load_dotenv()
     base_url = os.environ["NVIDIA_API_URL"]
     api_key = os.environ["NVIDIA_API_KEY"]
     llm_model = os.environ["LLM_MODEL"]
@@ -35,19 +44,18 @@ def _ingest_pdf_documents(document_path: str):
 
 def _generate_vector_database(document_path: str, embedding_function: HuggingFaceEmbeddings, database_path: str, index_name: str):
     split_documents = _ingest_pdf_documents(document_path)
-    database = FAISS.from_documents(split_documents, embedding_function)
-    database.save_local(folder_path=database_path, index_name=index_name)
+    return create_vector_database(split_documents, embedding_function, database_path, index_name)
 
 
 def _load_vector_database(embedding_function: HuggingFaceEmbeddings, database_path: str, index_name: str):
-    return FAISS.load_local(folder_path=database_path, embeddings=embedding_function, index_name=index_name, allow_dangerous_deserialization=True)
+    return restore_vector_database(embedding_function, database_path, index_name)
 
 
 def _condense_response_sources(source_documents):
-    unique_sources = { source.metadata['source'] for source in source_documents }
+    unique_sources = { source.metadata["source"] for source in source_documents }
     source_dictionary = { source: set() for source in unique_sources }
     for source in source_documents:
-        source_dictionary[source.metadata['source']].add(source.metadata['page'])
+        source_dictionary[source.metadata["source"]].add(source.metadata["page"])
     path_stem = lambda path_string : Path(path_string).stem
     return { path_stem(key): sorted(value) for (key, value) in source_dictionary.items() }
 
@@ -79,7 +87,7 @@ def main():
     chat_model = _load_chat_model()
     embedding_function =  _load_embedding_function()
 
-    database_path = "./Database"
+    database_path = "./Database"  # for FAISS
     database_index = "WWT_Index"
     # _generate_database("Knowledge Base", embedding_function, database_path, database_index)
     vector_database = _load_vector_database(embedding_function, database_path, database_index)
