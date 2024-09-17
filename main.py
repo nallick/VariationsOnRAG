@@ -1,4 +1,5 @@
 from dotenv import load_dotenv
+from enum import Enum
 from langchain_community.vectorstores import FAISS
 from langchain_huggingface import HuggingFaceEmbeddings
 from pathlib import Path
@@ -6,12 +7,22 @@ from pathlib import Path
 load_dotenv()
 
 
-USE_POSTGRES_VECTOR_STORE = False
+class VectorStore(Enum):
+    FAISS = 1
+    CHROMA = 2
+    POSTGRES = 3
 
-if USE_POSTGRES_VECTOR_STORE:
+VECTOR_STORE = VectorStore.FAISS
+
+if VECTOR_STORE == VectorStore.FAISS:
+    from vector_database_FAISS import *
+elif VECTOR_STORE == VectorStore.CHROMA:
+    from vector_database_Chroma import *
+elif VECTOR_STORE == VectorStore.POSTGRES:
     from vector_database_PGVector import *
 else:
-    from vector_database_FAISS import *
+    print("🛑 Unknown vector store specified")
+    exit(0)
 
 
 def _load_embedding_function() -> HuggingFaceEmbeddings:
@@ -89,9 +100,10 @@ def main():
 
     database_path = "./Database"  # for FAISS
     database_index = "WWT_Index"
-    # _generate_database("Knowledge Base", embedding_function, database_path, database_index)
+    # vector_database = _generate_vector_database("Knowledge Base", embedding_function, database_path, database_index)
     vector_database = _load_vector_database(embedding_function, database_path, database_index)
-    # search_result = vector_database.similarity_search(query)
+    # search_result = vector_database.similarity_search("hello")
+    # print("👹 ", search_result)
 
     example_count = 3
     _chatbot_input_loop(chat_model, vector_database, example_count)
