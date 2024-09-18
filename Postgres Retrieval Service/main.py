@@ -1,3 +1,5 @@
+# to start service: .venv/bin/fastapi run main.py
+
 import fastapi
 
 from dotenv import load_dotenv

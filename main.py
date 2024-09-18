@@ -70,11 +70,12 @@ def _condense_response_sources(source_documents):
     return { path_stem(key): sorted(value) for (key, value) in source_dictionary.items() }
 
 
-def _chatbot_input_loop(chat_model, retriever):
+def _chatbot_input_loop(chat_model, vector_database, example_count):
     import langchain.hub as langchain_hub
     from langchain.chains import RetrievalQA
 
     prompt = langchain_hub.pull("rlm/rag-prompt", api_url="https://api.hub.langchain.com")
+    retriever = vector_database.as_retriever(search_type="similarity", search_kwargs={"k": example_count})
     chain_kwargs = {"prompt": prompt}
     qa_chain = RetrievalQA.from_chain_type(llm=chat_model, retriever=retriever, return_source_documents=True, chain_type_kwargs=chain_kwargs)
 
@@ -93,7 +94,6 @@ def _chatbot_input_loop(chat_model, retriever):
 
 
 def main():
-    example_count = 3
     chat_model = _load_chat_model()
     embedding_function =  _load_embedding_function()
 
@@ -103,12 +103,8 @@ def main():
     # search_result = vector_database.similarity_search("hello")
     # print("👹 ", search_result)
 
-    if vector_database is None:
-        retriever = create_retriever(example_count)
-    else:
-        retriever = vector_database.as_retriever(search_type="similarity", search_kwargs={"k": example_count})
-
-    _chatbot_input_loop(chat_model, retriever)
+    example_count = 3
+    _chatbot_input_loop(chat_model, vector_database, example_count)
 
 
 if __name__ == "__main__":

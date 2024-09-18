@@ -50,9 +50,11 @@ class PostgresServiceRetriever(BaseRetriever):
     #     return self.docs[:self.k]
 
 
+class PGVectorProxy():
+
+    def as_retriever(self, search_type, search_kwargs):
+        return PostgresServiceRetriever(k=search_kwargs["k"])
+
+
 def restore_vector_database(unused_embedding_function, unused_database_path):
-    return None
-
-
-def create_retriever(example_count):
-    return PostgresServiceRetriever(k=example_count)
+    return PGVectorProxy()
