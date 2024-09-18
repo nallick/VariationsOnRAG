@@ -1,6 +1,5 @@
 from dotenv import load_dotenv
 from enum import Enum
-from langchain_community.vectorstores import FAISS
 from langchain_huggingface import HuggingFaceEmbeddings
 from pathlib import Path
 
@@ -12,7 +11,7 @@ class VectorStore(Enum):
     CHROMA = 2
     POSTGRES = 3
 
-VECTOR_STORE = VectorStore.FAISS
+VECTOR_STORE = VectorStore.POSTGRES
 
 if VECTOR_STORE == VectorStore.FAISS:
     from vector_database_FAISS import *
@@ -58,8 +57,8 @@ def _generate_vector_database(document_path: str, embedding_function: HuggingFac
     return create_vector_database(split_documents, embedding_function, database_path, index_name)
 
 
-def _load_vector_database(embedding_function: HuggingFaceEmbeddings, database_path: str, index_name: str):
-    return restore_vector_database(embedding_function, database_path, index_name)
+def _load_vector_database(embedding_function: HuggingFaceEmbeddings, database_path: str):
+    return restore_vector_database(embedding_function, database_path)
 
 
 def _condense_response_sources(source_documents):
@@ -71,12 +70,11 @@ def _condense_response_sources(source_documents):
     return { path_stem(key): sorted(value) for (key, value) in source_dictionary.items() }
 
 
-def _chatbot_input_loop(chat_model, vector_database, example_count):
+def _chatbot_input_loop(chat_model, retriever):
     import langchain.hub as langchain_hub
     from langchain.chains import RetrievalQA
 
     prompt = langchain_hub.pull("rlm/rag-prompt", api_url="https://api.hub.langchain.com")
-    retriever = vector_database.as_retriever(search_type="similarity", search_kwargs={"k": example_count})
     chain_kwargs = {"prompt": prompt}
     qa_chain = RetrievalQA.from_chain_type(llm=chat_model, retriever=retriever, return_source_documents=True, chain_type_kwargs=chain_kwargs)
 
@@ -95,18 +93,22 @@ def _chatbot_input_loop(chat_model, vector_database, example_count):
 
 
 def main():
+    example_count = 3
     chat_model = _load_chat_model()
     embedding_function =  _load_embedding_function()
 
-    database_path = "./Database"  # for FAISS
-    database_index = "WWT_Index"
-    # vector_database = _generate_vector_database("Knowledge Base", embedding_function, database_path, database_index)
-    vector_database = _load_vector_database(embedding_function, database_path, database_index)
+    database_path = "./Database"  # storage for local DBs
+    # vector_database = _generate_vector_database("Knowledge Base", embedding_function, database_path)
+    vector_database = _load_vector_database(embedding_function, database_path)
     # search_result = vector_database.similarity_search("hello")
     # print("👹 ", search_result)
 
-    example_count = 3
-    _chatbot_input_loop(chat_model, vector_database, example_count)
+    if vector_database is None:
+        retriever = create_retriever(example_count)
+    else:
+        retriever = vector_database.as_retriever(search_type="similarity", search_kwargs={"k": example_count})
+
+    _chatbot_input_loop(chat_model, retriever)
 
 
 if __name__ == "__main__":
