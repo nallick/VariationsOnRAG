@@ -1,3 +1,7 @@
+*.pem
+*.pickle
+*.zip
+
 .env
 .venv/
 Database/
@@ -5,3 +9,7 @@ Knowledge Base/
 Notes/
 
 Postgres Retrieval Service/__pycache__/
+
+AWS Postgres Retrieval Service/deploy/
+AWS Postgres Retrieval Service/pip_cache/
+AWS Postgres Retrieval Service/pip_tmp/
