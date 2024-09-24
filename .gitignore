@@ -6,6 +6,7 @@
 .venv/
 Database/
 Knowledge Base/
+Holiday Schedules/
 Notes/
 
 Postgres Retrieval Service/__pycache__/

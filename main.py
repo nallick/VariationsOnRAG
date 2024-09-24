@@ -6,12 +6,14 @@ from pathlib import Path
 load_dotenv()
 
 
+VECTOR_COLLECTION_NAME = "wwt_employee"
+
 class VectorStore(Enum):
     FAISS = 1
     CHROMA = 2
     POSTGRES = 3
 
-VECTOR_STORE = VectorStore.POSTGRES
+VECTOR_STORE = VectorStore.FAISS
 
 if VECTOR_STORE == VectorStore.FAISS:
     from vector_database_FAISS import *
@@ -52,13 +54,18 @@ def _ingest_pdf_documents(document_path: str):
     return text_splitter.split_documents(documents)
 
 
-def _generate_vector_database(document_path: str, embedding_function: HuggingFaceEmbeddings, database_path: str, index_name: str):
+def _generate_vector_database(document_path: str, embedding_function: HuggingFaceEmbeddings, database_path: str):
     split_documents = _ingest_pdf_documents(document_path)
-    return create_vector_database(split_documents, embedding_function, database_path, index_name)
+    return create_vector_database(split_documents, embedding_function, database_path, VECTOR_COLLECTION_NAME)
+
+
+def _update_vector_database(database, document_path: str, database_path: str, incremental: bool):
+    split_documents = _ingest_pdf_documents(document_path)
+    return update_vector_database(split_documents, database, database_path, VECTOR_COLLECTION_NAME, incremental)
 
 
 def _load_vector_database(embedding_function: HuggingFaceEmbeddings, database_path: str):
-    return restore_vector_database(embedding_function, database_path)
+    return restore_vector_database(embedding_function, database_path, VECTOR_COLLECTION_NAME)
 
 
 def _condense_response_sources(source_documents):
@@ -70,7 +77,7 @@ def _condense_response_sources(source_documents):
     return { path_stem(key): sorted(value) for (key, value) in source_dictionary.items() }
 
 
-def _chatbot_input_loop(chat_model, vector_database, example_count):
+def _chatbot_input_loop(chat_model, vector_database, example_count, document_path: str, database_path: str):
     import langchain.hub as langchain_hub
     from langchain.chains import RetrievalQA
 
@@ -86,25 +93,38 @@ def _chatbot_input_loop(chat_model, vector_database, example_count):
             query = input("\n🙂 ")
         except KeyboardInterrupt:
             break
-        response = qa_chain.invoke({"query": query})
-        sources = _condense_response_sources(response["source_documents"])
-        print(f"🤖 {response['result']}")
-        for source in sources:
-            print(f"    Source: {source}, page(s): {', '.join(str(page_number) for page_number in sources[source])}")
+        lowered_query = query.lower()
+        if lowered_query in { "exit", "quit" }:
+            break
+        elif lowered_query in { "refresh", "update" }:
+            update_result = _update_vector_database(vector_database, document_path, database_path, lowered_query == "refresh")
+            print(f"📀 {update_result}")
+        elif lowered_query == "clear":
+            update_result = clear_vector_database(vector_database, database_path, VECTOR_COLLECTION_NAME)
+            print(f"📀 {update_result}")
+
+        else:
+            response = qa_chain.invoke({"query": query})
+            sources = _condense_response_sources(response["source_documents"])
+            print(f"🤖 {response['result']}")
+            for source in sources:
+                print(f"    Source: {source}, page(s): {', '.join(str(page_number + 1) for page_number in sources[source])}")
 
 
 def main():
     chat_model = _load_chat_model()
     embedding_function =  _load_embedding_function()
 
+    document_path = "Knowledge Base"
     database_path = "./Database"  # storage for local DBs
-    # vector_database = _generate_vector_database("Knowledge Base", embedding_function, database_path)
+    # vector_database, index_result = _generate_vector_database(document_path, embedding_function, database_path)
+    # print("🏁 ", vector_database, index_result)
     vector_database = _load_vector_database(embedding_function, database_path)
     # search_result = vector_database.similarity_search("hello")
     # print("👹 ", search_result)
 
     example_count = 3
-    _chatbot_input_loop(chat_model, vector_database, example_count)
+    _chatbot_input_loop(chat_model, vector_database, example_count, document_path, database_path)
 
 
 if __name__ == "__main__":
