@@ -11,6 +11,7 @@ Notes/
 
 Postgres Retrieval Service/__pycache__/
 
+AWS Postgres Retrieval Service/.env
 AWS Postgres Retrieval Service/deploy/
 AWS Postgres Retrieval Service/pip_cache/
 AWS Postgres Retrieval Service/pip_tmp/

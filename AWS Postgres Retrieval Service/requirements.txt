@@ -1,4 +1,6 @@
+langchain==0.2.16
 langchain-huggingface==0.0.3
 langchain-postgres==0.0.12
 psycopg_binary==3.2.2
 pydantic==2.9.2
+python-dotenv==1.0.1

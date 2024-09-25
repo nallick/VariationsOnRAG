@@ -12,8 +12,9 @@ class VectorStore(Enum):
     FAISS = 1
     CHROMA = 2
     POSTGRES = 3
+    AWS_LAMBDA = 4
 
-VECTOR_STORE = VectorStore.FAISS
+VECTOR_STORE = VectorStore.AWS_LAMBDA
 
 if VECTOR_STORE == VectorStore.FAISS:
     from vector_store_FAISS import *
@@ -21,6 +22,8 @@ elif VECTOR_STORE == VectorStore.CHROMA:
     from vector_store_Chroma import *
 elif VECTOR_STORE == VectorStore.POSTGRES:
     from vector_store_PGVector import *
+elif VECTOR_STORE == VectorStore.AWS_LAMBDA:
+    from vector_store_AWS_Lambda import *
 else:
     print("🛑 Unknown vector store specified")
     exit(0)

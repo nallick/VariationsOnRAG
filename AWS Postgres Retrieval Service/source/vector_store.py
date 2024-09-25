@@ -1,36 +1,9 @@
 import os
-import requests
 
 from langchain.indexes import index as index_vector_store
 from langchain.indexes import SQLRecordManager
-from langchain_core.documents import Document
-from langchain_core.retrievers import BaseRetriever
-from langchain_postgres import PGVector
 from langchain_huggingface import HuggingFaceEmbeddings
-from pydantic import TypeAdapter
-from typing import List
-
-from postgres_retrieval_service_types import *
-
-
-class PostgresServiceRetriever(BaseRetriever):
-    k: int
-
-    def _get_relevant_documents(self, query: str) -> List[Document]:
-        query_url = f"http://127.0.0.1:8000/query?k={self.k}"
-        api_response = requests.post(query_url, data=str.encode(query), headers={"Content-Type": "text/plain"})
-        query_result = TypeAdapter(PostgresRetrievalResponse).validate_json(api_response.content)
-        result = [ Document(page_content=document.content, metadata={"source": document.source, "page": document.page}) for document in query_result.documents ]
-        return result
-
-    # async def _aget_relevant_documents(self, query: str) -> List[Document]:
-    #     """(Optional) async native implementation."""
-    #     return self.docs[:self.k]
-
-
-class PGVectorProxy():
-    def as_retriever(self, search_type, search_kwargs):
-        return PostgresServiceRetriever(k=search_kwargs["k"])
+from langchain_postgres import PGVector
 
 
 def _connection_string() -> str:
@@ -44,6 +17,13 @@ def _connection_string() -> str:
     )                                       
 
 
+def load_embedding_function():
+    modelPath = "sentence-transformers/all-MiniLM-l6-v2"
+    model_kwargs = {"device": "cpu"}
+    encode_kwargs = {"normalize_embeddings": False}
+    return HuggingFaceEmbeddings(model_name=modelPath, model_kwargs=model_kwargs, encode_kwargs=encode_kwargs)
+
+
 def _pgvector_database_connection(embedding_function: HuggingFaceEmbeddings, collection_name: str, connection_string: str):
     return PGVector(embeddings=embedding_function, collection_name=collection_name, connection=connection_string)
 
@@ -54,7 +34,6 @@ def _create_record_manager(collection_name: str, connection_string: str):
 
 
 def create_vector_store(split_documents, embedding_function: HuggingFaceEmbeddings, unused_database_path: str, collection_name: str):
-    # return PGVector.from_documents(split_documents, embedding=embedding_function, connection=PGVECTOR_CONNECTION_STRING)
     connection_string = _connection_string()
     vector_store = _pgvector_database_connection(embedding_function, collection_name, connection_string)
     record_manager = _create_record_manager(collection_name, connection_string)
@@ -66,7 +45,6 @@ def create_vector_store(split_documents, embedding_function: HuggingFaceEmbeddin
 def restore_vector_store(embedding_function, unused_database_path, collection_name: str):
     connection_string = _connection_string()
     return _pgvector_database_connection(embedding_function, collection_name, connection_string)
-    # return PGVectorProxy()
 
 
 def update_vector_store(split_documents, vector_store, unused_database_path: str, collection_name: str, incremental: bool):
