@@ -1,7 +1,7 @@
 import os
 import requests
 
-from langchain.indexes import index as langchain_index
+from langchain.indexes import index as index_vector_store
 from langchain.indexes import SQLRecordManager
 from langchain_core.documents import Document
 from langchain_core.retrievers import BaseRetriever
@@ -53,30 +53,30 @@ def _create_record_manager(collection_name: str, connection_string: str):
     return SQLRecordManager(namespace, db_url=connection_string)
 
 
-def create_vector_database(split_documents, embedding_function: HuggingFaceEmbeddings, unused_database_path: str, collection_name: str):
+def create_vector_store(split_documents, embedding_function: HuggingFaceEmbeddings, unused_database_path: str, collection_name: str):
     # return PGVector.from_documents(split_documents, embedding=embedding_function, connection=PGVECTOR_CONNECTION_STRING)
     connection_string = _connection_string()
-    database = _pgvector_database_connection(embedding_function, collection_name, connection_string)
+    vector_store = _pgvector_database_connection(embedding_function, collection_name, connection_string)
     record_manager = _create_record_manager(collection_name, connection_string)
     record_manager.create_schema()
-    index_result = langchain_index(split_documents, record_manager, database, cleanup=None, source_id_key="source")
-    return database, index_result
+    index_result = index_vector_store(split_documents, record_manager, vector_store, cleanup=None, source_id_key="source")
+    return vector_store, index_result
 
 
-def restore_vector_database(embedding_function, unused_database_path, collection_name: str):
+def restore_vector_store(embedding_function, unused_database_path, collection_name: str):
     connection_string = _connection_string()
     return _pgvector_database_connection(embedding_function, collection_name, connection_string)
     # return PGVectorProxy()
 
 
-def update_vector_database(split_documents, database, unused_database_path: str, collection_name: str, incremental: bool):
+def update_vector_store(split_documents, vector_store, unused_database_path: str, collection_name: str, incremental: bool):
     connection_string = _connection_string()
     record_manager = _create_record_manager(collection_name, connection_string)
     cleanup = "incremental" if incremental else "full"
-    return langchain_index(split_documents, record_manager, database, cleanup=cleanup, source_id_key="source")
+    return index_vector_store(split_documents, record_manager, vector_store, cleanup=cleanup, source_id_key="source")
 
 
-def clear_vector_database(database, unused_database_path: str, collection_name: str):
+def clear_vector_store(vector_store, unused_database_path: str, collection_name: str):
     connection_string = _connection_string()
     record_manager = _create_record_manager(collection_name, connection_string)
-    return langchain_index([], record_manager, database, cleanup="full", source_id_key="source")
+    return index_vector_store([], record_manager, vector_store, cleanup="full", source_id_key="source")

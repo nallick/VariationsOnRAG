@@ -16,11 +16,11 @@ class VectorStore(Enum):
 VECTOR_STORE = VectorStore.FAISS
 
 if VECTOR_STORE == VectorStore.FAISS:
-    from vector_database_FAISS import *
+    from vector_store_FAISS import *
 elif VECTOR_STORE == VectorStore.CHROMA:
-    from vector_database_Chroma import *
+    from vector_store_Chroma import *
 elif VECTOR_STORE == VectorStore.POSTGRES:
-    from vector_database_PGVector import *
+    from vector_store_PGVector import *
 else:
     print("🛑 Unknown vector store specified")
     exit(0)
@@ -54,18 +54,18 @@ def _ingest_pdf_documents(document_path: str):
     return text_splitter.split_documents(documents)
 
 
-def _generate_vector_database(document_path: str, embedding_function: HuggingFaceEmbeddings, database_path: str):
+def _generate_vector_store(document_path: str, embedding_function: HuggingFaceEmbeddings, database_path: str):
     split_documents = _ingest_pdf_documents(document_path)
-    return create_vector_database(split_documents, embedding_function, database_path, VECTOR_COLLECTION_NAME)
+    return create_vector_store(split_documents, embedding_function, database_path, VECTOR_COLLECTION_NAME)
 
 
-def _update_vector_database(database, document_path: str, database_path: str, incremental: bool):
+def _update_vector_store(database, document_path: str, database_path: str, incremental: bool):
     split_documents = _ingest_pdf_documents(document_path)
-    return update_vector_database(split_documents, database, database_path, VECTOR_COLLECTION_NAME, incremental)
+    return update_vector_store(split_documents, database, database_path, VECTOR_COLLECTION_NAME, incremental)
 
 
-def _load_vector_database(embedding_function: HuggingFaceEmbeddings, database_path: str):
-    return restore_vector_database(embedding_function, database_path, VECTOR_COLLECTION_NAME)
+def _load_vector_store(embedding_function: HuggingFaceEmbeddings, database_path: str):
+    return restore_vector_store(embedding_function, database_path, VECTOR_COLLECTION_NAME)
 
 
 def _condense_response_sources(source_documents):
@@ -77,12 +77,12 @@ def _condense_response_sources(source_documents):
     return { path_stem(key): sorted(value) for (key, value) in source_dictionary.items() }
 
 
-def _chatbot_input_loop(chat_model, vector_database, example_count, document_path: str, database_path: str):
+def _chatbot_input_loop(chat_model, vector_store, example_count, document_path: str, database_path: str):
     import langchain.hub as langchain_hub
     from langchain.chains import RetrievalQA
 
     prompt = langchain_hub.pull("rlm/rag-prompt", api_url="https://api.hub.langchain.com")
-    retriever = vector_database.as_retriever(search_type="similarity", search_kwargs={"k": example_count})
+    retriever = vector_store.as_retriever(search_type="similarity", search_kwargs={"k": example_count})
     chain_kwargs = {"prompt": prompt}
     qa_chain = RetrievalQA.from_chain_type(llm=chat_model, retriever=retriever, return_source_documents=True, chain_type_kwargs=chain_kwargs)
 
@@ -97,10 +97,10 @@ def _chatbot_input_loop(chat_model, vector_database, example_count, document_pat
         if lowered_query in { "exit", "quit" }:
             break
         elif lowered_query in { "refresh", "update" }:
-            update_result = _update_vector_database(vector_database, document_path, database_path, lowered_query == "refresh")
+            update_result = _update_vector_store(vector_store, document_path, database_path, lowered_query == "refresh")
             print(f"📀 {update_result}")
         elif lowered_query == "clear":
-            update_result = clear_vector_database(vector_database, database_path, VECTOR_COLLECTION_NAME)
+            update_result = clear_vector_store(vector_store, database_path, VECTOR_COLLECTION_NAME)
             print(f"📀 {update_result}")
 
         else:
@@ -117,14 +117,14 @@ def main():
 
     document_path = "Knowledge Base"
     database_path = "./Database"  # storage for local DBs
-    # vector_database, index_result = _generate_vector_database(document_path, embedding_function, database_path)
-    # print("🏁 ", vector_database, index_result)
-    vector_database = _load_vector_database(embedding_function, database_path)
-    # search_result = vector_database.similarity_search("hello")
+    # vector_store, index_result = _generate_vector_store(document_path, embedding_function, database_path)
+    # print("🏁 ", vector_store, index_result)
+    vector_store = _load_vector_store(embedding_function, database_path)
+    # search_result = vector_store.similarity_search("hello")
     # print("👹 ", search_result)
 
     example_count = 3
-    _chatbot_input_loop(chat_model, vector_database, example_count, document_path, database_path)
+    _chatbot_input_loop(chat_model, vector_store, example_count, document_path, database_path)
 
 
 if __name__ == "__main__":
