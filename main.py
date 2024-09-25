@@ -65,7 +65,10 @@ def _update_vector_store(database, document_path: str, database_path: str, incre
 
 
 def _load_vector_store(embedding_function: HuggingFaceEmbeddings, database_path: str):
-    return restore_vector_store(embedding_function, database_path, VECTOR_COLLECTION_NAME)
+    try:
+        return restore_vector_store(embedding_function, database_path, VECTOR_COLLECTION_NAME)
+    except:
+        return None
 
 
 def _condense_response_sources(source_documents):
@@ -77,14 +80,17 @@ def _condense_response_sources(source_documents):
     return { path_stem(key): sorted(value) for (key, value) in source_dictionary.items() }
 
 
-def _chatbot_input_loop(chat_model, vector_store, example_count, document_path: str, database_path: str):
+def _chatbot_input_loop(chat_model, vector_store, example_count, embedding_function: HuggingFaceEmbeddings, document_path: str, database_path: str):
     import langchain.hub as langchain_hub
     from langchain.chains import RetrievalQA
 
-    prompt = langchain_hub.pull("rlm/rag-prompt", api_url="https://api.hub.langchain.com")
-    retriever = vector_store.as_retriever(search_type="similarity", search_kwargs={"k": example_count})
-    chain_kwargs = {"prompt": prompt}
-    qa_chain = RetrievalQA.from_chain_type(llm=chat_model, retriever=retriever, return_source_documents=True, chain_type_kwargs=chain_kwargs)
+    def create_qa_chain():
+        prompt = langchain_hub.pull("rlm/rag-prompt", api_url="https://api.hub.langchain.com")
+        retriever = vector_store.as_retriever(search_type="similarity", search_kwargs={"k": example_count})
+        chain_kwargs = {"prompt": prompt}
+        return RetrievalQA.from_chain_type(llm=chat_model, retriever=retriever, return_source_documents=True, chain_type_kwargs=chain_kwargs)
+
+    qa_chain = create_qa_chain() if vector_store else None
 
     print("\n🤖 Hello, how can I help you?")
 
@@ -102,13 +108,19 @@ def _chatbot_input_loop(chat_model, vector_store, example_count, document_path: 
         elif lowered_query == "clear":
             update_result = clear_vector_store(vector_store, database_path, VECTOR_COLLECTION_NAME)
             print(f"📀 {update_result}")
-
+        elif lowered_query == "build":
+            vector_store, build_result = _generate_vector_store(document_path, embedding_function, database_path)
+            print(f"👷 {build_result}")
+            qa_chain = create_qa_chain()
         else:
-            response = qa_chain.invoke({"query": query})
-            sources = _condense_response_sources(response["source_documents"])
-            print(f"🤖 {response['result']}")
-            for source in sources:
-                print(f"    Source: {source}, page(s): {', '.join(str(page_number + 1) for page_number in sources[source])}")
+            if qa_chain:
+                response = qa_chain.invoke({"query": query})
+                sources = _condense_response_sources(response["source_documents"])
+                print(f"🤖 {response['result']}")
+                for source in sources:
+                    print(f"    Source: {source}, page(s): {', '.join(str(page_number + 1) for page_number in sources[source])}")
+            else:
+                print("🛑 Vector store not found")
 
 
 def main():
@@ -117,14 +129,12 @@ def main():
 
     document_path = "Knowledge Base"
     database_path = "./Database"  # storage for local DBs
-    # vector_store, index_result = _generate_vector_store(document_path, embedding_function, database_path)
-    # print("🏁 ", vector_store, index_result)
     vector_store = _load_vector_store(embedding_function, database_path)
     # search_result = vector_store.similarity_search("hello")
     # print("👹 ", search_result)
 
     example_count = 3
-    _chatbot_input_loop(chat_model, vector_store, example_count, document_path, database_path)
+    _chatbot_input_loop(chat_model, vector_store, example_count, embedding_function, document_path, database_path)
 
 
 if __name__ == "__main__":
