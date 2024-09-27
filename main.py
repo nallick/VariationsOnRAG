@@ -14,7 +14,7 @@ class VectorStore(Enum):
     POSTGRES = 3
     AWS_LAMBDA = 4
 
-VECTOR_STORE = VectorStore.AWS_LAMBDA
+VECTOR_STORE = VectorStore.FAISS
 
 if VECTOR_STORE == VectorStore.FAISS:
     from vector_store_FAISS import *
@@ -84,6 +84,7 @@ def _condense_response_sources(source_documents):
 
 
 def _chatbot_input_loop(chat_model, vector_store, example_count, embedding_function: HuggingFaceEmbeddings, document_path: str, database_path: str):
+    import time
     import langchain.hub as langchain_hub
     from langchain.chains import RetrievalQA
 
@@ -117,11 +118,14 @@ def _chatbot_input_loop(chat_model, vector_store, example_count, embedding_funct
             qa_chain = create_qa_chain()
         else:
             if qa_chain:
+                start_time = time.perf_counter()
                 response = qa_chain.invoke({"query": query})
+                end_time = time.perf_counter()
                 sources = _condense_response_sources(response["source_documents"])
                 print(f"🤖 {response['result']}")
                 for source in sources:
                     print(f"    Source: {source}, page(s): {', '.join(str(page_number + 1) for page_number in sources[source])}")
+                print(f"    ⏱️  {round(end_time - start_time, 2)} seconds")
             else:
                 print("🛑 Vector store not found")
 
@@ -133,7 +137,7 @@ def main():
     document_path = "Knowledge Base"
     database_path = "./Database"  # storage for local DBs
     vector_store = _load_vector_store(embedding_function, database_path)
-    # search_result = vector_store.similarity_search("hello")
+    # search_result = vector_store.similarity_search("Does WWT celebrate Juneteenth?")
     # print("👹 ", search_result)
 
     example_count = 3
