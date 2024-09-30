@@ -1,4 +1,6 @@
 from dotenv import load_dotenv
+
+from OfflineEmbeddings import *
 from postgres_retrieval_service_types import *
 from vector_store import *
 
@@ -6,7 +8,7 @@ from vector_store import *
 VECTOR_COLLECTION_NAME = "wwt_employee"
 
 load_dotenv()
-_embedding_function = load_embedding_function()
+_embedding_function = OfflineEmbeddings("./all-MiniLM-l6-v2")
 _vector_store = restore_vector_store(_embedding_function, "", VECTOR_COLLECTION_NAME)
 
 

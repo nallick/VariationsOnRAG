@@ -27,11 +27,11 @@ scp -i id_ed25519_aws_ec2.pem .env ec2-user@ec2-3-84-29-225.compute-1.amazonaws.
 ## Building
 ```
 docker build -t postgres_retrieval_service:latest .
-docker run -p 9000:8080 postgres_retrieval_service:latest
 ```
 
 ## Testing
 ```
+docker run -p 9000:8080 postgres_retrieval_service:latest
 curl -XPOST "http://localhost:9000/2015-03-31/functions/function/invocations" -d '{"body":"Does WWT celebrate Juneteenth?"}'
 ```
 

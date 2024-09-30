@@ -1,7 +1,9 @@
 from dotenv import load_dotenv
 from enum import Enum
-from langchain_huggingface import HuggingFaceEmbeddings
+from langchain_core.embeddings import Embeddings
 from pathlib import Path
+
+from OfflineEmbeddings import *
 
 load_dotenv()
 
@@ -29,12 +31,12 @@ else:
     exit(0)
 
 
-def _load_embedding_function() -> HuggingFaceEmbeddings:
-    modelPath = "sentence-transformers/all-MiniLM-l6-v2"
-    model_kwargs = {"device": "cpu"}
-    # encode_kwargs = {"clean_up_tokenization_spaces": True, "normalize_embeddings": False}
-    encode_kwargs = {"normalize_embeddings": False}
-    return HuggingFaceEmbeddings(model_name=modelPath, model_kwargs=model_kwargs, encode_kwargs=encode_kwargs)
+def _load_embedding_function() -> Embeddings:
+    return OfflineEmbeddings("./all-MiniLM-l6-v2")
+    # modelPath = "sentence-transformers/all-MiniLM-l6-v2"
+    # model_kwargs = {"device": "cpu"}
+    # encode_kwargs = {"normalize_embeddings": False}
+    # return HuggingFaceEmbeddings(model_name=modelPath, model_kwargs=model_kwargs, encode_kwargs=encode_kwargs)
 
 
 def _load_chat_model():
@@ -57,7 +59,7 @@ def _ingest_pdf_documents(document_path: str):
     return text_splitter.split_documents(documents)
 
 
-def _generate_vector_store(document_path: str, embedding_function: HuggingFaceEmbeddings, database_path: str):
+def _generate_vector_store(document_path: str, embedding_function: Embeddings, database_path: str):
     split_documents = _ingest_pdf_documents(document_path)
     return create_vector_store(split_documents, embedding_function, database_path, VECTOR_COLLECTION_NAME)
 
@@ -67,7 +69,7 @@ def _update_vector_store(database, document_path: str, database_path: str, incre
     return update_vector_store(split_documents, database, database_path, VECTOR_COLLECTION_NAME, incremental)
 
 
-def _load_vector_store(embedding_function: HuggingFaceEmbeddings, database_path: str):
+def _load_vector_store(embedding_function: Embeddings, database_path: str):
     try:
         return restore_vector_store(embedding_function, database_path, VECTOR_COLLECTION_NAME)
     except:
@@ -83,7 +85,7 @@ def _condense_response_sources(source_documents):
     return { path_stem(key): sorted(value) for (key, value) in source_dictionary.items() }
 
 
-def _chatbot_input_loop(chat_model, vector_store, example_count, embedding_function: HuggingFaceEmbeddings, document_path: str, database_path: str):
+def _chatbot_input_loop(chat_model, vector_store, example_count, embedding_function: Embeddings, document_path: str, database_path: str):
     import time
     import langchain.hub as langchain_hub
     from langchain.chains import RetrievalQA
@@ -103,6 +105,8 @@ def _chatbot_input_loop(chat_model, vector_store, example_count, embedding_funct
             query = input("\n🙂 ")
         except KeyboardInterrupt:
             break
+    
+        start_time = time.perf_counter()
         lowered_query = query.lower()
         if lowered_query in { "exit", "quit" }:
             break
@@ -118,24 +122,44 @@ def _chatbot_input_loop(chat_model, vector_store, example_count, embedding_funct
             qa_chain = create_qa_chain()
         else:
             if qa_chain:
-                start_time = time.perf_counter()
                 response = qa_chain.invoke({"query": query})
-                end_time = time.perf_counter()
                 sources = _condense_response_sources(response["source_documents"])
                 print(f"🤖 {response['result']}")
                 for source in sources:
                     print(f"    Source: {source}, page(s): {', '.join(str(page_number + 1) for page_number in sources[source])}")
-                print(f"    ⏱️  {round(end_time - start_time, 2)} seconds")
             else:
                 print("🛑 Vector store not found")
+        end_time = time.perf_counter()
+        print(f"    ⏱️  {round(end_time - start_time, 2)} seconds")
+
+
+def _compare_embeddings(document_path: str, embedding_function1: Embeddings, embedding_function2: Embeddings):
+    split_documents = _ingest_pdf_documents(document_path)
+    split_text = [document.page_content for document in split_documents]
+    embeddings1 = embedding_function1.embed_documents(split_text)
+    print("👹 ", type(embeddings1), len(embeddings1))
+    embeddings2 = embedding_function2.embed_documents(split_text)
+    print("👹👹 ", type(embeddings2), len(embeddings2))
+    matches = 0
+    for i in range(len(embeddings1)):
+        if embeddings1[i] != embeddings2[i]:
+            print("👹👹👹 ", i, embeddings1[i][:3], embeddings2[i][:3])
+        else:
+            matches += 1
+    print("👹👹👹👹 ", matches)
 
 
 def main():
+    # OfflineEmbeddings.save_pretrained_model("sentence-transformers/all-MiniLM-l6-v2", "./all-MiniLM-l6-v2")
+
     chat_model = _load_chat_model()
     embedding_function =  _load_embedding_function()
 
     document_path = "Knowledge Base"
     database_path = "./Database"  # storage for local DBs
+    # _compare_embeddings(document_path, embedding_function, alt_embedding_function)
+    # return
+
     vector_store = _load_vector_store(embedding_function, database_path)
     # search_result = vector_store.similarity_search("Does WWT celebrate Juneteenth?")
     # print("👹 ", search_result)
@@ -155,3 +179,10 @@ if __name__ == "__main__":
 # query = "When do I need to submit my expense report?"
 # query = "What can I use my company credit card for?"
 # query = "Can I buy my boss a birthday present with my company credit card?"
+
+# How far ahead to I have to request time off?
+#     According to the context, for scheduled PTO, you should request time off at least seven (7) days in advance. For foreseeable leave related to PFL, you must provide at least thirty (30) days advance notice before PFL is to begin.
+# What is PFL?
+#     PFL stands for Paid Family Leave. It provides 67 percent of a New York employee's average weekly wage, capped at the same percentage of the New York State Average Weekly Wage (NYSAWW).
+# What states require Paid Family Leave?
+#     Based on the provided context, the states that require Paid Family Leave are Colorado and New York. These states have their own laws and policies in place, such as the Paid Family and Medical Leave Insurance Act (FAMLI) in Colorado and the New York Paid Family Leave Law in New York, which provide eligible employees with paid family leave.

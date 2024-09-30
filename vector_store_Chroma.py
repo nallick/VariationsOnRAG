@@ -1,10 +1,10 @@
 from langchain.indexes import index as index_vector_store
 from langchain.indexes import SQLRecordManager
 from langchain_chroma import Chroma
-from langchain_huggingface import HuggingFaceEmbeddings
+from langchain_core.embeddings import Embeddings
 
 
-def _create_empty_chroma_store(embedding_function: HuggingFaceEmbeddings, collection_name: str, persist_directory: str):
+def _create_empty_chroma_store(embedding_function: Embeddings, collection_name: str, persist_directory: str):
     return Chroma(persist_directory=persist_directory, collection_name=collection_name, embedding_function=embedding_function)
 
 
@@ -13,7 +13,7 @@ def _create_record_manager(database_path: str, collection_name: str):
     return SQLRecordManager(namespace, db_url=f"sqlite:///{database_path}/record_manager_cache.sql")
 
 
-def create_vector_store(split_documents, embedding_function: HuggingFaceEmbeddings, database_path: str, collection_name: str):
+def create_vector_store(split_documents, embedding_function: Embeddings, database_path: str, collection_name: str):
     vector_store = _create_empty_chroma_store(embedding_function, collection_name, database_path)
     record_manager = _create_record_manager(database_path, collection_name)
     record_manager.create_schema()
@@ -21,7 +21,7 @@ def create_vector_store(split_documents, embedding_function: HuggingFaceEmbeddin
     return vector_store, index_result
 
 
-def restore_vector_store(embedding_function: HuggingFaceEmbeddings, database_path: str, collection_name: str):
+def restore_vector_store(embedding_function: Embeddings, database_path: str, collection_name: str):
     return Chroma(persist_directory=database_path, collection_name=collection_name, embedding_function=embedding_function)
 
 

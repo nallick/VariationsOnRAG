@@ -1,10 +1,13 @@
+# WARNING: Using with online embeddings requires `export KMP_DUPLICATE_LIB_OK=True` to avoid error:
+#   OMP: Error #15: Initializing libomp.dylib, but found libomp.dylib already initialized.
+
 from langchain.indexes import index as index_vector_store
 from langchain.indexes import SQLRecordManager
 from langchain_community.vectorstores import FAISS
-from langchain_huggingface import HuggingFaceEmbeddings
+from langchain_core.embeddings import Embeddings
 
 
-def _create_empty_faiss_vector_store(embedding_function: HuggingFaceEmbeddings):
+def _create_empty_faiss_vector_store(embedding_function: Embeddings):
     import faiss  # macOS seg faults if this is imported too early
     from langchain_community.docstore.in_memory import InMemoryDocstore
 
@@ -23,7 +26,7 @@ def _faiss_index_name(collection_name: str):
     return f"{collection_name}-faiss_db"
 
 
-def create_vector_store(split_documents, embedding_function: HuggingFaceEmbeddings, database_path: str, collection_name: str):
+def create_vector_store(split_documents, embedding_function: Embeddings, database_path: str, collection_name: str):
     vector_store = _create_empty_faiss_vector_store(embedding_function)
     record_manager = _create_record_manager(database_path, collection_name)
     record_manager.create_schema()
@@ -33,7 +36,7 @@ def create_vector_store(split_documents, embedding_function: HuggingFaceEmbeddin
     return vector_store, index_result
 
 
-def restore_vector_store(embedding_function: HuggingFaceEmbeddings, database_path: str, collection_name: str):
+def restore_vector_store(embedding_function: Embeddings, database_path: str, collection_name: str):
     index_name = _faiss_index_name(collection_name)
     return FAISS.load_local(folder_path=database_path, embeddings=embedding_function, index_name=index_name, allow_dangerous_deserialization=True)
 

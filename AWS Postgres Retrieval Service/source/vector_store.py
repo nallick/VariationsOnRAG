@@ -2,7 +2,7 @@ import os
 
 from langchain.indexes import index as index_vector_store
 from langchain.indexes import SQLRecordManager
-from langchain_huggingface import HuggingFaceEmbeddings
+from langchain_core.embeddings import Embeddings
 from langchain_postgres import PGVector
 
 
@@ -17,14 +17,7 @@ def _connection_string() -> str:
     )                                       
 
 
-def load_embedding_function():
-    modelPath = "sentence-transformers/all-MiniLM-l6-v2"
-    model_kwargs = {"device": "cpu"}
-    encode_kwargs = {"normalize_embeddings": False}
-    return HuggingFaceEmbeddings(model_name=modelPath, model_kwargs=model_kwargs, encode_kwargs=encode_kwargs)
-
-
-def _pgvector_database_connection(embedding_function: HuggingFaceEmbeddings, collection_name: str, connection_string: str):
+def _pgvector_database_connection(embedding_function: Embeddings, collection_name: str, connection_string: str):
     return PGVector(embeddings=embedding_function, collection_name=collection_name, connection=connection_string)
 
 
@@ -33,7 +26,7 @@ def _create_record_manager(collection_name: str, connection_string: str):
     return SQLRecordManager(namespace, db_url=connection_string)
 
 
-def create_vector_store(split_documents, embedding_function: HuggingFaceEmbeddings, unused_database_path: str, collection_name: str):
+def create_vector_store(split_documents, embedding_function: Embeddings, unused_database_path: str, collection_name: str):
     connection_string = _connection_string()
     vector_store = _pgvector_database_connection(embedding_function, collection_name, connection_string)
     record_manager = _create_record_manager(collection_name, connection_string)
