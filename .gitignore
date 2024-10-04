@@ -5,7 +5,8 @@
 .env
 .venv/
 all-MiniLM-l6-v2/
-Database/
+Database <all-MiniLM-l6-v2>/
+Database <titan-embed-text-v2>/
 Knowledge Base/
 Holiday Schedules/
 Notes/

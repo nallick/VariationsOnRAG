@@ -1,8 +1,10 @@
 from dotenv import load_dotenv
 from enum import Enum
+from langchain_core.language_models import BaseChatModel
 from langchain_core.embeddings import Embeddings
 from pathlib import Path
 
+from BedrockEmbeddings import *
 from OfflineEmbeddings import *
 
 load_dotenv()
@@ -10,12 +12,22 @@ load_dotenv()
 
 VECTOR_COLLECTION_NAME = "wwt_employee"
 
+class ChatModel(Enum):
+    AWS = 1
+    NVIDIA = 2
+
+class EmbeddingModel(Enum):
+    ALL_MINILM_L6_V2 = 1
+    TITAN_EMBED_TEXT_V2 = 2
+
 class VectorStore(Enum):
     FAISS = 1
     CHROMA = 2
     POSTGRES = 3
     AWS_LAMBDA = 4
 
+CHAT_MODEL = ChatModel.AWS
+EMBEDDING_MODEL = EmbeddingModel.TITAN_EMBED_TEXT_V2
 VECTOR_STORE = VectorStore.FAISS
 
 if VECTOR_STORE == VectorStore.FAISS:
@@ -31,22 +43,48 @@ else:
     exit(0)
 
 
+def _database_path():
+    if EMBEDDING_MODEL == EmbeddingModel.ALL_MINILM_L6_V2:
+        return "./Database <all-MiniLM-l6-v2>"
+    if EMBEDDING_MODEL == EmbeddingModel.TITAN_EMBED_TEXT_V2:
+        return "./Database <titan-embed-text-v2>"
+    print("🛑 Unknown embedding model specified")
+    exit(0)
+
+
 def _load_embedding_function() -> Embeddings:
-    return OfflineEmbeddings("./all-MiniLM-l6-v2")
     # modelPath = "sentence-transformers/all-MiniLM-l6-v2"
     # model_kwargs = {"device": "cpu"}
     # encode_kwargs = {"normalize_embeddings": False}
     # return HuggingFaceEmbeddings(model_name=modelPath, model_kwargs=model_kwargs, encode_kwargs=encode_kwargs)
 
+    if EMBEDDING_MODEL == EmbeddingModel.ALL_MINILM_L6_V2:
+        return OfflineEmbeddings("./all-MiniLM-l6-v2")
+    if EMBEDDING_MODEL == EmbeddingModel.TITAN_EMBED_TEXT_V2:
+        return BedrockEmbeddings()
+    print("🛑 Unknown embedding model specified")
+    exit(0)
 
-def _load_chat_model():
+
+def _load_chat_model() -> BaseChatModel:
     import os
-    from langchain_nvidia_ai_endpoints import ChatNVIDIA
 
-    base_url = os.environ["NVIDIA_API_URL"]
-    api_key = os.environ["NVIDIA_API_KEY"]
-    llm_model = os.environ["LLM_MODEL"]
-    return ChatNVIDIA(base_url=base_url, api_key=api_key, model=llm_model, max_tokens=175)
+    if CHAT_MODEL == ChatModel.AWS:
+        from langchain_aws import ChatBedrock
+
+        llm_model = os.environ["AWS_LLM_MODEL"]
+        return ChatBedrock(model_id=llm_model, model_kwargs=dict(temperature=0))
+
+    if CHAT_MODEL == ChatModel.NVIDIA:
+        from langchain_nvidia_ai_endpoints import ChatNVIDIA
+
+        base_url = os.environ["NVIDIA_API_URL"]
+        api_key = os.environ["NVIDIA_API_KEY"]
+        llm_model = os.environ["NVIDIA_LLM_MODEL"]
+        return ChatNVIDIA(base_url=base_url, api_key=api_key, model=llm_model, max_tokens=175)
+
+    print("🛑 Unknown chat model specified")
+    exit(0)
 
 
 def _ingest_pdf_documents(document_path: str):
@@ -85,7 +123,7 @@ def _condense_response_sources(source_documents):
     return { path_stem(key): sorted(value) for (key, value) in source_dictionary.items() }
 
 
-def _chatbot_input_loop(chat_model, vector_store, example_count, embedding_function: Embeddings, document_path: str, database_path: str):
+def _chatbot_input_loop(chat_model: BaseChatModel, vector_store, example_count, embedding_function: Embeddings, document_path: str, database_path: str):
     import time
     import langchain.hub as langchain_hub
     from langchain.chains import RetrievalQA
@@ -156,7 +194,7 @@ def main():
     embedding_function =  _load_embedding_function()
 
     document_path = "Knowledge Base"
-    database_path = "./Database"  # storage for local DBs
+    database_path = _database_path()  # storage for local DBs
     # _compare_embeddings(document_path, embedding_function, alt_embedding_function)
     # return
 
