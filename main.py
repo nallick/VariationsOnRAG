@@ -14,7 +14,8 @@ VECTOR_COLLECTION_NAME = "wwt_employee"
 
 class ChatModel(Enum):
     AWS = 1
-    NVIDIA = 2
+    GOOGLE = 2
+    NVIDIA = 3
 
 class EmbeddingModel(Enum):
     ALL_MINILM_L6_V2 = 1
@@ -26,8 +27,8 @@ class VectorStore(Enum):
     POSTGRES = 3
     AWS_LAMBDA = 4
 
-CHAT_MODEL = ChatModel.AWS
-EMBEDDING_MODEL = EmbeddingModel.TITAN_EMBED_TEXT_V2
+CHAT_MODEL = ChatModel.NVIDIA
+EMBEDDING_MODEL = EmbeddingModel.ALL_MINILM_L6_V2
 VECTOR_STORE = VectorStore.FAISS
 
 if VECTOR_STORE == VectorStore.FAISS:
@@ -74,6 +75,12 @@ def _load_chat_model() -> BaseChatModel:
 
         llm_model = os.environ["AWS_LLM_MODEL"]
         return ChatBedrock(model_id=llm_model, model_kwargs=dict(temperature=0))
+
+    if CHAT_MODEL == ChatModel.GOOGLE:
+        from langchain_google_genai import ChatGoogleGenerativeAI
+
+        llm_model = os.environ["GOOGLE_LLM_MODEL"]
+        return ChatGoogleGenerativeAI(model=llm_model, temperature=0, max_tokens=None, timeout=None, max_retries=2)
 
     if CHAT_MODEL == ChatModel.NVIDIA:
         from langchain_nvidia_ai_endpoints import ChatNVIDIA
